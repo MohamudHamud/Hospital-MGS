@@ -1,0 +1,29 @@
+{
+  "name": "medicircle-hms",
+  "version": "1.0.0",
+  "description": "MediCircle Hospital Management System - full patient care circle",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "migrate": "node src/migrate.js",
+    "migrate:status": "node src/migrate.js --status",
+    "create-admin": "node scripts/create-admin.js",
+    "backup": "node scripts/backup.js",
+    "setup": "node src/setup.js",
+    "reset": "node src/setup.js --reset"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "chart.js": "^4.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.5"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

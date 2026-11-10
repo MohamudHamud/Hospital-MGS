@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Queue Display</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, Arial, sans-serif; background: radial-gradient(circle at 20% 0%, #13324f, #0a1626 60%); color: #fff; min-height: 100vh; }
+    header { display: flex; align-items: center; padding: 22px 36px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    header h1 { margin: 0; font-size: 30px; }
+    header .sub { color: #8fd8d5; font-size: 15px; }
+    .clock { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
+    .clock b { font-size: 40px; display: block; line-height: 1; }
+    main { display: grid; grid-template-columns: 1fr 340px; gap: 24px; padding: 28px 36px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 20px; align-content: start; }
+    .doc { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 20px; padding: 20px; }
+    .doc h2 { margin: 0; font-size: 21px; } .doc .room { color: #9fb3c8; font-size: 14px; }
+    .serving { margin: 14px 0; background: linear-gradient(135deg, #13a3a0, #0e7c86); border-radius: 16px; padding: 14px; text-align: center; }
+    .serving small { text-transform: uppercase; letter-spacing: .15em; font-size: 12px; opacity: .85; }
+    .serving b { display: block; font-size: 76px; line-height: 1; font-weight: 800; }
+    .serving.idle { background: rgba(255,255,255,.06); } .serving.idle b { font-size: 26px; padding: 22px 0; color: #9fb3c8; }
+    .flash { animation: flash 1s ease 3; }
+    @keyframes flash { 50% { box-shadow: 0 0 0 10px rgba(19,163,160,.45); transform: scale(1.03); } }
+    .next { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .next small { color: #9fb3c8; margin-right: 4px; }
+    .tk { background: rgba(255,255,255,.12); border-radius: 10px; padding: 6px 12px; font-size: 22px; font-weight: 700; }
+    .tk.urgent { background: #d98e04; } .tk.emergency { background: #dc3545; } .tk.results { outline: 2px solid #f87171; }
+    aside { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 20px; padding: 20px; align-self: start; }
+    aside h2 { margin: 0 0 12px; font-size: 22px; }
+    .ph { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 18px; }
+    .ph b { font-size: 26px; }
+    .empty { color: #9fb3c8; text-align: center; padding: 60px 0; font-size: 22px; }
+    footer { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,.35); padding: 10px 36px; color: #cbd5e1; font-size: 15px; white-space: nowrap; overflow: hidden; }
+    footer span { display: inline-block; animation: marquee 30s linear infinite; padding-left: 100%; }
+    @keyframes marquee { to { transform: translateX(-100%); } }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 16px; } header { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <header><div><h1 id="hn">Hospital</h1><div class="sub">Patient Queue · Please wait for your token number</div></div><div class="clock"><b id="time"></b><span id="date"></span></div></header>
+  <main><div class="grid" id="grid"></div>
+    <aside><h2>💊 Pharmacy</h2><div id="ph"></div></aside></main>
+  <footer><span>Welcome. Please keep your queue token with you · Emergency patients are seen first · Results-ready patients return to their doctor automatically · Wishing you good health.</span></footer>
+  <script>
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const last = {};
+    function speak(text) { try { const u = new SpeechSynthesisUtterance(text); u.rate = .9; speechSynthesis.speak(u); } catch (e) {} }
+    async function load() {
+      try {
+        const d = await (await fetch('/api/public/display')).json();
+        document.getElementById('hn').textContent = d.hospital || 'Hospital';
+        const g = document.getElementById('grid');
+        if (!d.doctors.length) g.innerHTML = '<div class="empty">No patients waiting right now.</div>';
+        else g.innerHTML = d.doctors.map((x, i) => {
+          const key = x.doctor, tok = x.serving ? x.serving.token : null;
+          const changed = tok && last[key] !== undefined && last[key] !== tok;
+          if (changed) speak(`Token number ${tok}, please proceed to ${x.doctor}${x.room ? ', room ' + x.room : ''}`);
+          last[key] = tok;
+          return `<div class="doc"><h2>${esc(x.doctor)}</h2><div class="room">${esc(x.department || '')}${x.room ? ' · Room ' + esc(x.room) : ''}</div>
+            <div class="serving ${tok ? '' : 'idle'} ${changed ? 'flash' : ''}"><small>Now serving</small><b>${tok ? esc(tok) : 'Please wait'}</b></div>
+            <div class="next"><small>Next:</small>${x.next.length ? x.next.slice(0, 8).map((n) => `<span class="tk ${esc(n.priority)} ${n.results ? 'results' : ''}">${esc(n.token)}</span>`).join('') : '<small>—</small>'}
+            ${x.triage ? `<small style="margin-left:auto">${x.triage} at triage</small>` : ''}</div></div>`;
+        }).join('');
+        document.getElementById('ph').innerHTML = d.pharmacy.length ? d.pharmacy.map((p) => `<div class="ph"><span>${esc(p.doctor_name)}</span><b>${esc(p.token_no)}</b></div>`).join('')
+          : '<div style="color:#9fb3c8">No prescriptions waiting.</div>';
+      } catch (e) { /* retry next tick */ }
+    }
+    function tick() { const n = new Date(); document.getElementById('time').textContent = n.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); document.getElementById('date').textContent = n.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }); }
+    tick(); setInterval(tick, 10000); load(); setInterval(load, 5000);
+  </script>
+</body>
+</html>
